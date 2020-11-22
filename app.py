@@ -43,7 +43,7 @@ def index():
     try:
         bom_response = requests.get(helpers.BOM_URL)
         bom_response.raise_for_status()
-        bom_response = bom_response.json()
+        bom_json = bom_response.json()
     except requests.exceptions.HTTPError as error:
         app.logger.error(error)
         error_message = helpers.get_error_message()
@@ -55,7 +55,6 @@ def index():
         temperature = 20  #default value
 
     # Get the BOM stations
-    bom_json = bom_response.json()
     stations = bom_json["observations"]["data"]
 
     # Filter out for the stations we are interested in
