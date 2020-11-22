@@ -21,14 +21,15 @@ def view_raw():
         View: /raw
         A debug viewpoint. Display the BOM data in its rawest form.
     """
+    bom_json = None
     try:
         bom_response = requests.get(helpers.BOM_URL)
         bom_response.raise_for_status()
-        response = bom_response.json()
+        bom_json = bom_response.json()
     except requests.exceptions.HTTPError as error:
         app.logger.error(error)
         abort(503, description="Error Connecting to BOM: %s" % str(error))
-    return jsonify(response)
+    return jsonify(bom_json)
 
 
 @app.route('/')
@@ -44,6 +45,7 @@ def index():
     """
 
     # Connect to BOM, and get the raw data
+    bom_json = None
     try:
         bom_response = requests.get(helpers.BOM_URL)
         bom_response.raise_for_status()
@@ -60,12 +62,13 @@ def index():
         except:
             temperature = None
     if temperature is None:
-        temperature = 20  #default value
+        temperature = 20  # default value
 
     # Get the BOM stations
     stations = bom_json["observations"]["data"]
 
     # Filter out for the stations we are interested in
+    # Assumes that apparent_t provided is an int
     stations_we_want = [ station for station in stations if station["apparent_t"] > temperature ]
     app.logger.debug("Showing %s/%s stations, where temperature > %s", len(stations_we_want), len(stations), temperature)
 
