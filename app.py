@@ -54,6 +54,11 @@ def index():
 
     # Handle an optional temperature argument
     temperature = request.args.get('temperature')
+    if temperature is not None:
+        try:
+            temperature = float(temperature)
+        except:
+            temperature = None
     if temperature is None:
         temperature = 20  #default value
 
