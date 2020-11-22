@@ -3,11 +3,16 @@ import json
 import logging
 import requests
 
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, abort
 
 import bomlib.helpers as helpers
 
 app = Flask(__name__)
+
+
+@app.errorhandler(503)
+def error_service_unavailable(e):
+    return jsonify(error=str(e)), 503
 
 
 @app.route('/raw')
@@ -22,8 +27,7 @@ def view_raw():
         response = bom_response.json()
     except requests.exceptions.HTTPError as error:
         app.logger.error(error)
-        error_message = helpers.get_error_message()
-        return Response(error_message, status=503, mimetype="application/json")
+        abort(503, description="Error Connecting to BOM: %s" % str(error))
     return jsonify(response)
 
 
@@ -46,8 +50,7 @@ def index():
         bom_json = bom_response.json()
     except requests.exceptions.HTTPError as error:
         app.logger.error(error)
-        error_message = helpers.get_error_message()
-        return Response(error_message, status=503, mimetype="application/json")
+        abort(503, description="Error Connecting to BOM: %s" % str(error))
 
     # Handle an optional temperature argument
     temperature = request.args.get('temperature')
