@@ -1,52 +1,94 @@
 # app.py
-from flask import Flask, request, jsonify
+import json
+import logging
+import requests
+
+from flask import Flask, request, jsonify, Response
+
+import bomlib.helpers as helpers
+
 app = Flask(__name__)
 
-@app.route('/getmsg/', methods=['GET'])
-def respond():
-    # Retrieve the name from url parameter
-    name = request.args.get("name", None)
 
-    # For debugging
-    print(f"got name {name}")
-
-    response = {}
-
-    # Check if user sent a name at all
-    if not name:
-        response["ERROR"] = "no name found, please send a name."
-    # Check if the user entered a number not a name
-    elif str(name).isdigit():
-        response["ERROR"] = "name can't be numeric."
-    # Now the user entered a valid name
-    else:
-        response["MESSAGE"] = f"Welcome {name} to our awesome platform!!"
-
-    # Return the response in json format
+@app.route('/raw')
+def view_raw():
+    """
+        View: /raw
+        A debug viewpoint. Display the BOM data in its rawest form.
+    """
+    try:
+        bom_response = requests.get(helpers.BOM_URL)
+        bom_response.raise_for_status()
+        response = bom_response.json()
+    except requests.exceptions.HTTPError as error:
+        app.logger.error(error)
+        error_message = helpers.get_error_message()
+        return Response(error_message, status=503, mimetype="application/json")
     return jsonify(response)
 
-@app.route('/post/', methods=['POST'])
-def post_something():
-    param = request.form.get('name')
-    print(param)
-    # You can add the test cases you made in the previous function, but in our case here you are just testing the POST functionality
-    if param:
-        return jsonify({
-            "Message": f"Welcome {name} to our awesome platform!!",
-            # Add this option to distinct the POST request
-            "METHOD" : "POST"
-        })
-    else:
-        return jsonify({
-            "ERROR": "no name found, please send a name."
-        })
 
-# A welcome message to test our server
 @app.route('/')
 def index():
-    return "<h1>Welcome to our server !!</h1>"
+    """
+        View: /
+        Display specific BOM data, showing only data where 'apparent_t' > 20
+        The data fields we want are:
+            "name",
+            "apparent_t",
+            "lat",
+            "long",
+    """
+
+    # Connect to BOM, and get the raw data
+    try:
+        bom_response = requests.get(helpers.BOM_URL)
+        bom_response.raise_for_status()
+        bom_response = bom_response.json()
+    except requests.exceptions.HTTPError as error:
+        app.logger.error(error)
+        error_message = helpers.get_error_message()
+        return Response(error_message, status=503, mimetype="application/json")
+
+    # Handle an optional temperature argument
+    temperature = request.args.get('temperature')
+    if temperature is None:
+        temperature = 20  #default value
+
+    # Get the BOM stations
+    bom_json = bom_response.json()
+    stations = bom_json["observations"]["data"]
+
+    # Filter out for the stations we are interested in
+    stations_we_want = [ station for station in stations if station["apparent_t"] > temperature ]
+    app.logger.debug("Showing %s/%s stations, where temperature > %s", len(stations_we_want), len(stations), temperature)
+
+    # Build the response data, keyed by apparent_t to allow sorting
+    sorted_stations = []
+    for station in stations_we_want:
+        # Get the data we are interested in
+        name = station["name"]
+        apparent_t = station["apparent_t"]
+        lat = station["lat"]
+        lon = station["lon"]
+
+        # Build the response object for this station
+        d = {
+            "name": name,
+            "apparent_t": apparent_t,
+            "lat": lat,
+            "lon": lon,
+        }
+
+        # Append to the data list, allowing us to sort later
+        sorted_stations.append((apparent_t, d))
+
+    # And sort. Default is ascending
+    sorted_stations.sort()
+
+    # Return response data
+    return jsonify([ station for (key, station) in sorted_stations ])
+
 
 if __name__ == '__main__':
     # Threaded option to enable multiple instances for multiple user access support
-    #app.run(threaded=True, port=5000)
     app.run(host='0.0.0.0', threaded=True, port=5000)

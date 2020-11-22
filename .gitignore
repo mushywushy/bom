@@ -1,6 +1,9 @@
 venv
+venv36
 *.pyc
 staticfiles
 .env
 db.sqlite3
-getting-started/*
+.tox
+*.egg-info
+.idea
